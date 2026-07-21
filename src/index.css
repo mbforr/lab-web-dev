@@ -1,0 +1,13 @@
+/* Global reset so the map can fill the whole viewport. */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden; /* the map owns the viewport; nothing scrolls the page */
+}

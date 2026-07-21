@@ -1,0 +1,120 @@
+/* Layout for Bikeable NYC. Plain CSS only — MUI styles the widgets (chips, chat
+   input), but the map surface and panels are hand-styled (CLAUDE.md: the map
+   itself is styled with plain CSS). */
+
+.app {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+/* The map fills everything; overlays sit on top of it. */
+.map-root {
+  position: absolute;
+  inset: 0;
+}
+
+/* Floating panels over the map. */
+.overlay {
+  position: absolute;
+  z-index: 1;
+}
+
+.overlay-top {
+  top: 12px;
+  left: 12px;
+}
+
+.overlay-right {
+  top: 12px;
+  right: 12px;
+  width: 320px;
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chip row sits in a translucent pill so it stays readable over any map color. */
+.filter-bar {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 10px;
+  border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+}
+
+/* Chat + action log panel. */
+.chat {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.chat-input {
+  align-items: center;
+}
+
+/* Scrollable action log: the transparency surface for the JSON contract. */
+.action-log {
+  overflow-y: auto;
+  max-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.log-empty {
+  color: #888;
+  font-style: italic;
+}
+
+.log-item {
+  padding: 4px 6px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.log-item.valid {
+  background: #eef7ee;
+}
+
+.log-item.invalid {
+  background: #fdecec;
+}
+
+.log-tag {
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.log-item.valid .log-tag {
+  color: #2e7d32;
+}
+
+.log-item.invalid .log-tag {
+  color: #c62828;
+}
+
+/* Click popup contents (maplibre popup shell is default-styled). */
+.popup-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.popup-cat {
+  text-transform: capitalize;
+  color: #555;
+  font-size: 12px;
+}
+
+.popup-addr {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #333;
+}

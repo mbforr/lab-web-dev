@@ -1,0 +1,9 @@
+# Python pipeline dependencies. Install into a venv:
+#   python3 -m venv pipeline/.venv
+#   source pipeline/.venv/bin/activate
+#   pip install -r pipeline/requirements.txt
+#
+# tippecanoe is NOT here: it is a C++ binary installed via brew/apt, not pip.
+
+overturemaps   # CLI: downloads Overture GeoParquet for a bbox
+duckdb         # in-process SQL + spatial extension for cleaning
