@@ -59,6 +59,11 @@ const VALIDATORS = {
   toggleLayer: (a) => typeof a.layer === 'string' && typeof a.visible === 'boolean',
   // Emphasize the place(s) matching this name.
   highlight: (a) => typeof a.name === 'string' && a.name.trim().length > 0,
+  // Geocode a place/neighborhood name and fly there. Part 3: this is the chat's
+  // door into the SAME search path the SearchBox uses. It carries only text; the
+  // async geocode + resulting flyTo happen in App.runAction, so the actual camera
+  // move still goes through the one flyTo/dispatch path (no second way to move the map).
+  search: (a) => typeof a.query === 'string' && a.query.trim().length > 0,
   // Return to the default view: no filter, no highlight, NYC overview.
   reset: () => true,
 }

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import Map from './Map'
 import FilterBar from './FilterBar'
 import Chat from './Chat'
+import SearchBox, { geocode } from './SearchBox'
 import { validateAction, dispatchAction } from './mapActions'
 import './App.css'
 
@@ -16,7 +17,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [log, setLog] = useState([])
 
-  function runAction(raw) {
+  async function runAction(raw) {
     const result = validateAction(raw)
 
     if (!result.valid) {
@@ -32,14 +33,28 @@ export default function App() {
     // map has finished loading. In practice the controller is set within a second.
     if (!controllerRef.current) return
 
-    dispatchAction(result.action, controllerRef.current)
+    const action = result.action
+
+    // `search` is a MACRO, not a direct map op: we geocode the text (the same Photon
+    // call the SearchBox uses), then re-enter runAction with a flyTo. So chat search,
+    // manual search, and clicks all move the camera through the ONE flyTo path.
+    if (action.action === 'search') {
+      setLog((l) => [...l, { valid: true, action }])
+      const locations = await geocode(action.query)
+      if (locations.length > 0) {
+        runAction({ action: 'flyTo', center: locations[0].center, zoom: 14 })
+      }
+      return
+    }
+
+    dispatchAction(action, controllerRef.current)
 
     // Keep the chip selection in sync when the action changes the filter, so a
     // chat "show me coffee" lights up the coffee chip too.
-    if (result.action.action === 'setFilter') setSelectedCategory(result.action.category)
-    if (result.action.action === 'reset') setSelectedCategory('all')
+    if (action.action === 'setFilter') setSelectedCategory(action.category)
+    if (action.action === 'reset') setSelectedCategory('all')
 
-    setLog((l) => [...l, { valid: true, action: result.action }])
+    setLog((l) => [...l, { valid: true, action }])
   }
 
   return (
@@ -52,6 +67,11 @@ export default function App() {
           selected={selectedCategory}
           onSelect={(cat) => runAction({ action: 'setFilter', category: cat })}
         />
+      </div>
+
+      {/* The one search input, top-center: locations (Photon) + places (our data). */}
+      <div className="overlay overlay-search">
+        <SearchBox onAction={runAction} controllerRef={controllerRef} />
       </div>
 
       {/* Chat + action log panel, right side. */}

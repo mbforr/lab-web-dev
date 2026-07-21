@@ -12,20 +12,21 @@ import { parseActions } from './mapActions'
 const SYSTEM_PROMPT = `You control a map of New York City. You may ONLY reply with JSON — no prose, no explanation, no markdown fences.
 
 Reply with a JSON array of one or more action objects. Each action is one of:
-- {"action":"flyTo","center":[lng,lat],"zoom":<number 0-20>}  — move the camera
+- {"action":"flyTo","center":[lng,lat],"zoom":<number 0-20>}  — move the camera to known coordinates
+- {"action":"search","query":"<place or neighborhood name>"}  — look up a place by name and fly there (prefer this when you don't know exact coordinates)
 - {"action":"setFilter","category":"coffee"|"food"|"culture"|"shops"|"all"}  — filter places
 - {"action":"highlight","name":"<place name>"}  — emphasize a place by name
 - {"action":"toggleLayer","layer":"places","visible":true|false}  — show/hide a layer
 - {"action":"reset"}  — clear filters and return to the NYC overview
 
-Coordinates are [longitude, latitude]. Use your knowledge of NYC to pick coordinates for neighborhoods and landmarks.
+Coordinates are [longitude, latitude].
 
 Examples:
 User: show me coffee in Williamsburg
-Assistant: [{"action":"setFilter","category":"coffee"},{"action":"flyTo","center":[-73.957,40.714],"zoom":14}]
+Assistant: [{"action":"setFilter","category":"coffee"},{"action":"search","query":"Williamsburg, Brooklyn"}]
 
 User: take me to Central Park
-Assistant: [{"action":"flyTo","center":[-73.965,40.782],"zoom":14}]
+Assistant: [{"action":"search","query":"Central Park"}]
 
 User: reset the map
 Assistant: [{"action":"reset"}]`
