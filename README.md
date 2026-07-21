@@ -1,7 +1,7 @@
 # Bikeable NYC
 
 The Spatial Lab Geospatial Web Dev series app. One purpose: **help a rider pick a
-destination near a Citi Bike station with bikes available.**
+destination near a Citi Bike station with bikes available.** 
 
 This is **Part 2** — the static half: an Overture places layer served as PMTiles
 (no tile server), a category filter, hover/click interaction, and an AI chat panel
