@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -66,6 +66,13 @@ const SOURCE_LAYER = 'places' // pinned by `tippecanoe -l places`
 const LAYER = 'places-circles'
 const LABEL_LAYER = 'places-labels'
 
+// Part 4 GeoJSON layers (data pushed in from props, not tiles).
+const STATIONS_SOURCE = 'stations'
+const STATIONS_LAYER = 'stations-circles'
+const REPORTS_SOURCE = 'reports'
+const REPORTS_LAYER = 'reports-circles'
+const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] }
+
 // Default NYC overview (also where reset() returns to).
 const NYC_CENTER = [-73.98, 40.74]
 const NYC_ZOOM = 12
@@ -112,9 +119,31 @@ const opacityExpr = (category, name) => {
   return name ? ['case', ['==', ['get', 'name'], name], 0.9, byCategory] : byCategory
 }
 
-export default function Map({ onReady }) {
+// --- Station paint (Part 4) --------------------------------------------------
+// Stations are sized and colored by bikes available: empty reads red and small, full reads
+// green and large — a rider can scan for "green = go". The `filterAvailable` action raises a
+// minimum-bikes threshold; stations below it dim to 0.15. Truly-empty stations are always
+// drawn faint so the eye skips them.
+const STATION_RADIUS = ['interpolate', ['linear'], ['get', 'bikes'], 0, 3, 20, 9]
+const STATION_COLOR = [
+  'interpolate', ['linear'], ['get', 'bikes'],
+  0, '#c0392b', // empty → red
+  3, '#e67e22', // a few → orange
+  10, '#27ae60', // plenty → green
+]
+const stationOpacityExpr = (minBikes) => [
+  'case',
+  ['<', ['get', 'bikes'], minBikes], 0.15, // below requested threshold → dim
+  ['==', ['get', 'bikes'], 0], 0.4, // truly empty → faint
+  0.9,
+]
+
+export default function Map({ onReady, onPlaceClick, stations, reports }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  // Flips true once the style + layers are ready, so the data-push effects below know they
+  // can call setData without racing the initial load.
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     const map = new maplibregl.Map({
@@ -125,20 +154,24 @@ export default function Map({ onReady }) {
     })
     mapRef.current = map
 
-    // Two popups with distinct jobs (CLAUDE.md interaction rule): hover shows ONLY the
-    // cheap name; click commits to the full detail.
+    // Hover shows ONLY the cheap name (CLAUDE.md interaction rule); the click-commit detail
+    // now lives in the ReportForm dialog (opened via onPlaceClick), not a map popup.
     const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false })
-    const clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false })
 
-    // The two pieces of state the paint expressions depend on. applyPaint() rebuilds all
-    // three paint properties from them, so category dimming and highlight never clobber
-    // each other.
+    // Places paint state: applyPaint() rebuilds radius/stroke/opacity from the active
+    // category + highlight so dimming and highlight never clobber each other.
     let currentCategory = 'all'
     let highlightedName = null
     const applyPaint = () => {
       map.setPaintProperty(LAYER, 'circle-radius', radiusExpr(highlightedName))
       map.setPaintProperty(LAYER, 'circle-stroke-width', strokeExpr(highlightedName))
       map.setPaintProperty(LAYER, 'circle-opacity', opacityExpr(currentCategory, highlightedName))
+    }
+
+    // Station paint state: the current minimum-bikes threshold (0 = show all).
+    let stationMinBikes = 0
+    const applyStationPaint = () => {
+      map.setPaintProperty(STATIONS_LAYER, 'circle-opacity', stationOpacityExpr(stationMinBikes))
     }
 
     map.on('load', () => {
@@ -183,6 +216,37 @@ export default function Map({ onReady }) {
         },
       })
 
+      // Citi Bike stations (Part 4): live availability, sized/colored by bikes. Data is
+      // pushed in from the useStations hook via the `stations` prop (see the effect below).
+      map.addSource(STATIONS_SOURCE, { type: 'geojson', data: EMPTY_GEOJSON })
+      map.addLayer({
+        id: STATIONS_LAYER,
+        type: 'circle',
+        source: STATIONS_SOURCE,
+        paint: {
+          'circle-radius': STATION_RADIUS,
+          'circle-color': STATION_COLOR,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': stationOpacityExpr(0),
+        },
+      })
+
+      // User spot-reports (Part 4): a small, distinct magenta layer, drawn on top. Fed from
+      // GET /reports via the `reports` prop.
+      map.addSource(REPORTS_SOURCE, { type: 'geojson', data: EMPTY_GEOJSON })
+      map.addLayer({
+        id: REPORTS_LAYER,
+        type: 'circle',
+        source: REPORTS_SOURCE,
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#d81b9a',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+        },
+      })
+
       // Hover: pointer cursor + name-only tooltip (cheap info).
       map.on('mousemove', LAYER, (e) => {
         map.getCanvas().style.cursor = 'pointer'
@@ -193,18 +257,12 @@ export default function Map({ onReady }) {
         hoverPopup.remove()
       })
 
-      // Click: full detail popup (name, category, address if present).
+      // Click COMMITS: hand the place up to App, which opens the ReportForm dialog (the
+      // detail-and-act surface). Coordinates come straight from the clicked feature.
       map.on('click', LAYER, (e) => {
         const p = e.features[0].properties
-        const address = p.address ? `<div class="popup-addr">${p.address}</div>` : ''
-        clickPopup
-          .setLngLat(e.lngLat)
-          .setHTML(
-            `<div class="popup-name">${p.name}</div>` +
-            `<div class="popup-cat">${p.category}</div>` +
-            address,
-          )
-          .addTo(map)
+        const [lon, lat] = e.features[0].geometry.coordinates
+        onPlaceClick({ id: p.id, name: p.name, category: p.category, address: p.address, lon, lat })
       })
 
       // The imperative controller: the ONLY surface anything outside this file uses to
@@ -236,34 +294,46 @@ export default function Map({ onReady }) {
         reset: () => {
           currentCategory = 'all'
           highlightedName = null
+          stationMinBikes = 0
           applyPaint()
+          applyStationPaint()
           flyTo(map, NYC_CENTER, NYC_ZOOM)
         },
 
-        // Feature search for the SearchBox "Places" group. Searches the places currently
-        // loaded in tiles (querySourceFeatures) — coverage is the loaded viewport, not all
-        // 200k rows. Full-dataset search is a Part 4 DuckDB-WASM job by design.
-        searchFeatures: (text) => {
-          const q = text.trim().toLowerCase()
-          if (!q) return []
-          const feats = map.querySourceFeatures(SOURCE, { sourceLayer: SOURCE_LAYER })
-          const seen = new Set()
-          const out = []
-          for (const f of feats) {
-            const name = f.properties.name
-            if (!name || seen.has(name) || !name.toLowerCase().includes(q)) continue
-            seen.add(name)
-            out.push({ name, center: f.geometry.coordinates })
-            if (out.length >= 8) break
-          }
-          return out
+        // Part 4 `filterAvailable`: dim stations below the requested bikes threshold.
+        setStationMinBikes: (n) => {
+          stationMinBikes = n
+          applyStationPaint()
+        },
+
+        // StatsPanel needs the current viewport and a moveend hook. getBounds returns a
+        // plain object DuckDB's BETWEEN query can read; onMoveEnd returns an unsubscribe.
+        getBounds: () => {
+          const b = map.getBounds()
+          return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() }
+        },
+        onMoveEnd: (cb) => {
+          map.on('moveend', cb)
+          return () => map.off('moveend', cb)
         },
       })
+
+      setLoaded(true)
     })
 
     return () => map.remove()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Push live data into the map sources whenever the props change (after load). This is how
+  // the GBFS hook and the reports fetch reach the map without re-initializing it.
+  useEffect(() => {
+    if (loaded && stations) mapRef.current.getSource(STATIONS_SOURCE).setData(stations)
+  }, [loaded, stations])
+
+  useEffect(() => {
+    if (loaded && reports) mapRef.current.getSource(REPORTS_SOURCE).setData(reports)
+  }, [loaded, reports])
 
   return <div ref={containerRef} className="map-root" />
 }

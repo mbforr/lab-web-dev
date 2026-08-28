@@ -33,6 +33,9 @@ DATA = ROOT / "public" / "data"              # gitignored build artifact the app
 RAW_PARQUET = BUILD / "places_raw.parquet"
 GEOJSONSEQ = BUILD / "places.geojsonseq"
 PMTILES = DATA / "places.pmtiles"
+# Part 4: the SAME cleaned data, published as a flat Parquet for in-browser DuckDB-WASM
+# querying. PMTiles renders the dots; this serves viewport stats + full-dataset search.
+PARQUET = DATA / "places.parquet"
 
 # NYC bounding box (xmin, ymin, xmax, ymax) from the Part 2 spec. This is the ONLY
 # place the study area is defined.
@@ -124,6 +127,20 @@ breakdown = con.execute(
     "SELECT category, count(*) FROM places GROUP BY category ORDER BY count(*) DESC"
 ).fetchall()
 done("Bucketed into app categories", t, ", ".join(f"{c}={n:,}" for c, n in breakdown))
+
+# Part 4: emit places.parquet with flat lon/lat doubles (ST_X/ST_Y of the point) so
+# DuckDB-WASM can run BETWEEN-bounds and ILIKE queries in the browser with no geometry
+# extension. Same rows, same columns as the tiles — one prepared dataset, two consumers.
+t = time.time()
+con.execute(
+    f"""
+    COPY (SELECT id, name, category, confidence, address,
+                 ST_X(geom) AS lon, ST_Y(geom) AS lat
+          FROM places)
+    TO '{PARQUET.as_posix()}' (FORMAT PARQUET);
+    """
+)
+done("Wrote Parquet", t, f"{PARQUET.name} — {PARQUET.stat().st_size / 1e6:.0f} MB")
 
 # Export GeoJSONSeq (one JSON feature per line). DuckDB's GDAL writer takes the
 # GEOMETRY column as the feature geometry and every other column as a property.

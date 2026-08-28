@@ -16,6 +16,7 @@ Reply with a JSON array of one or more action objects. Each action is one of:
 - {"action":"search","query":"<place or neighborhood name>"}  — look up a place by name and fly there (prefer this when you don't know exact coordinates)
 - {"action":"setFilter","category":"coffee"|"food"|"culture"|"shops"|"all"}  — filter places
 - {"action":"highlight","name":"<place name>"}  — emphasize a place by name
+- {"action":"filterAvailable","minBikes":<number>=0>}  — dim Citi Bike stations with fewer than minBikes bikes available
 - {"action":"toggleLayer","layer":"places","visible":true|false}  — show/hide a layer
 - {"action":"reset"}  — clear filters and return to the NYC overview
 
@@ -25,8 +26,8 @@ Examples:
 User: show me coffee in Williamsburg
 Assistant: [{"action":"setFilter","category":"coffee"},{"action":"search","query":"Williamsburg, Brooklyn"}]
 
-User: take me to Central Park
-Assistant: [{"action":"search","query":"Central Park"}]
+User: coffee near a station with bikes in Fort Greene
+Assistant: [{"action":"setFilter","category":"coffee"},{"action":"filterAvailable","minBikes":1},{"action":"search","query":"Fort Greene"}]
 
 User: reset the map
 Assistant: [{"action":"reset"}]`

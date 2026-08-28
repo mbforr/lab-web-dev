@@ -8,11 +8,15 @@ dist/
 # never committed (see CLAUDE.md data rules).
 public/data/
 
-# Python pipeline virtual environment + intermediate build files
+# Python virtual environments + intermediate build files
 pipeline/.venv/
 pipeline/build/
+api/.venv/
 __pycache__/
 
 # Secrets: documented by .env.example, never committed
 .env
 api/.env
+
+# macOS
+.DS_Store

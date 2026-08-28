@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Autocomplete from '@mui/material/Autocomplete'
 import TextField from '@mui/material/TextField'
+import { searchNames } from './duck'
 
 // NYC bbox (same study area as the pipeline) — biases Photon toward local results.
 const NYC_BBOX = '-74.26,40.49,-73.70,40.92'
@@ -30,11 +31,11 @@ export async function geocode(text) {
 // location pick and a place pick emit ACTIONS through the shared dispatch (onAction),
 // so manual search moves the map by the same path as chat and clicks. This is the only
 // new widget in Part 3 (no layer switcher, no second box).
-export default function SearchBox({ onAction, controllerRef }) {
+export default function SearchBox({ onAction }) {
   const [inputValue, setInputValue] = useState('')
   const [options, setOptions] = useState([])
 
-  // Debounced 300ms: don't fire a Photon request (or scan the tiles) on every keystroke.
+  // Debounced 300ms: don't fire a Photon request (or a DuckDB query) on every keystroke.
   useEffect(() => {
     const q = inputValue.trim()
     if (!q) {
@@ -42,11 +43,10 @@ export default function SearchBox({ onAction, controllerRef }) {
       return
     }
     const timer = setTimeout(async () => {
-      const locations = await geocode(q)
-      // Feature search hits the places currently loaded in tiles via the map controller
-      // (populated once the map is ready; read .current at call time). Full-dataset
-      // search arrives in Part 4 (DuckDB-WASM).
-      const places = (controllerRef.current?.searchFeatures(q) || []).map((p) => ({
+      // Locations from Photon; Places from DuckDB-WASM (Part 4 upgrade) — the latter now
+      // searches ALL ~400k places, not just the ones in loaded tiles. Run both in parallel.
+      const [locations, placeRows] = await Promise.all([geocode(q), searchNames(q)])
+      const places = placeRows.map((p) => ({
         group: 'Places',
         name: p.name,
         label: p.name,
@@ -55,7 +55,7 @@ export default function SearchBox({ onAction, controllerRef }) {
       setOptions([...locations, ...places])
     }, 300)
     return () => clearTimeout(timer)
-  }, [inputValue, controllerRef])
+  }, [inputValue])
 
   function handleSelect(_event, value) {
     // freeSolo can hand back a raw string on Enter; we only act on chosen options.

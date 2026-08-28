@@ -1,8 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Map from './Map'
 import FilterBar from './FilterBar'
 import Chat from './Chat'
 import SearchBox, { geocode } from './SearchBox'
+import StatsPanel from './StatsPanel'
+import ReportForm from './ReportForm'
+import useStations from './useStations'
 import { validateAction, dispatchAction } from './mapActions'
 import './App.css'
 
@@ -14,8 +17,23 @@ import './App.css'
 export default function App() {
   // The map's imperative controller, handed up by Map once it has loaded.
   const controllerRef = useRef(null)
+  const [mapReady, setMapReady] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [log, setLog] = useState([])
+  const [selectedPlace, setSelectedPlace] = useState(null) // set on click → opens ReportForm
+
+  // Live Citi Bike stations (GBFS hook), pushed into the map.
+  const stations = useStations()
+
+  // User spot-reports served by our API. Fetched on mount and re-fetched after each submit
+  // so a new report shows up on the map. If the API isn't running yet this fails visibly in
+  // the console (teaching code lets it fail) and the reports layer stays empty.
+  const API = import.meta.env.VITE_API_BASE_URL
+  const [reports, setReports] = useState({ type: 'FeatureCollection', features: [] })
+  function refetchReports() {
+    fetch(`${API}/reports`).then((r) => r.json()).then(setReports)
+  }
+  useEffect(() => { refetchReports() }, [])
 
   async function runAction(raw) {
     const result = validateAction(raw)
@@ -59,7 +77,15 @@ export default function App() {
 
   return (
     <div className="app">
-      <Map onReady={(controller) => (controllerRef.current = controller)} />
+      <Map
+        onReady={(controller) => {
+          controllerRef.current = controller
+          setMapReady(true)
+        }}
+        onPlaceClick={setSelectedPlace}
+        stations={stations}
+        reports={reports}
+      />
 
       {/* Filter chips overlay the map, top-left. */}
       <div className="overlay overlay-top">
@@ -69,15 +95,27 @@ export default function App() {
         />
       </div>
 
-      {/* The one search input, top-center: locations (Photon) + places (our data). */}
+      {/* The one search input, top-center: locations (Photon) + places (DuckDB-WASM). */}
       <div className="overlay overlay-search">
-        <SearchBox onAction={runAction} controllerRef={controllerRef} />
+        <SearchBox onAction={runAction} />
       </div>
 
       {/* Chat + action log panel, right side. */}
       <div className="overlay overlay-right">
         <Chat runAction={runAction} log={log} />
       </div>
+
+      {/* Viewport category counts via DuckDB-WASM, bottom-left. */}
+      <div className="overlay overlay-stats">
+        <StatsPanel controllerRef={controllerRef} mapReady={mapReady} />
+      </div>
+
+      {/* Clicking a place opens this report dialog (the click-commit detail surface). */}
+      <ReportForm
+        place={selectedPlace}
+        onClose={() => setSelectedPlace(null)}
+        onSubmitted={refetchReports}
+      />
     </div>
   )
 }

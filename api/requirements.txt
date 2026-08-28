@@ -1,0 +1,10 @@
+# Backend dependencies. Install into a venv:
+#   python3 -m venv api/.venv
+#   source api/.venv/bin/activate
+#   pip install -r api/requirements.txt
+# Then, with DATABASE_URL set (see api/.env):
+#   cd api && uvicorn main:app --port 8000
+
+fastapi
+uvicorn[standard]
+psycopg[binary]   # psycopg 3; [binary] ships the libpq client so no system install needed

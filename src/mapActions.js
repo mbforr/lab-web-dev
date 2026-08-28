@@ -64,6 +64,9 @@ const VALIDATORS = {
   // async geocode + resulting flyTo happen in App.runAction, so the actual camera
   // move still goes through the one flyTo/dispatch path (no second way to move the map).
   search: (a) => typeof a.query === 'string' && a.query.trim().length > 0,
+  // Part 4: dim Citi Bike stations with fewer than minBikes bikes available, so the map
+  // shows only stations a rider could actually use.
+  filterAvailable: (a) => typeof a.minBikes === 'number' && a.minBikes >= 0,
   // Return to the default view: no filter, no highlight, NYC overview.
   reset: () => true,
 }
@@ -128,9 +131,14 @@ export function dispatchAction(action, controller) {
     case 'highlight':
       controller.setHighlight(action.name)
       break
+    case 'filterAvailable':
+      controller.setStationMinBikes(action.minBikes)
+      break
     case 'reset':
       controller.reset()
       break
+    // `search` is intentionally absent: it's resolved to a flyTo in App.runAction (async
+    // geocode first), so it never reaches this synchronous map-op dispatch.
     // No default: validateAction already guaranteed a known action.
   }
 }
